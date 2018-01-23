@@ -10,8 +10,8 @@ import java.sql.ResultSet
 
 object SongRepository {
 
-    private val TABLE_NAME = "song"
-    private val HISTORY_TABLE_NAME = "history"
+    private const val TABLE_NAME = "song"
+    private const val HISTORY_TABLE_NAME = "history"
 
     fun save(songs : List<Song>) {
         val googleIdSongMap = songs.map {it.googleId}.toSet()

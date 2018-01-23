@@ -8,7 +8,6 @@ class Connection private constructor() {
         val connection = initConnection()
 
         fun initConnection() : java.sql.Connection {
-//            DriverManager.registerDriver(JDBC())
             val connection = DriverManager.getConnection("jdbc:sqlite:db.db")
             connection.autoCommit = false
             try {

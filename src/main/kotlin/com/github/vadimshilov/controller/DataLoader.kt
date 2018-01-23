@@ -82,7 +82,7 @@ object DataLoader {
             if (loadAlbums) {
                 artist.albums.get()
                         .map { api.getAlbum(it.albumId, true) }
-                        .filterNot { it.tracks.isPresent }
+                        .filter { it.tracks.isPresent }
                         .map { initTracks(it.tracks.get(), dbArtist, false) }
                         .forEach { albumTracks ->
                             albumTracks

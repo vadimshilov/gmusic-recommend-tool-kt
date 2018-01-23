@@ -9,8 +9,8 @@ import java.sql.ResultSet
 
 object ArtistRepository {
 
-    private val TABLE_NAME = "artist"
-    private val RELATED_ARTIST_TABLE_NAME = "related_artists"
+    private const val TABLE_NAME = "artist"
+    private const val RELATED_ARTIST_TABLE_NAME = "related_artists"
 
     fun save(artist : Artist) {
         if (artist.id == null) {

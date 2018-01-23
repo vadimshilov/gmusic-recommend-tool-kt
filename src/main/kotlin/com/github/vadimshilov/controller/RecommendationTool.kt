@@ -103,8 +103,9 @@ object RecommendationTool {
         }
         val playlist =
                 api.playlistApi.create(LocalDate.now().toString(), "", Playlist.PlaylistShareState.PRIVATE)
-        val choosenSongList = choosenSongs.toMutableList()
+        var choosenSongList = choosenSongs.toMutableList()
         shuffleList(choosenSongList, random)
+        choosenSongList = choosenSongList.subList(0, 300)
         api.playlistApi.addTracksToPlaylist(playlist, choosenSongList.map { api.trackApi.getTrack(it) }.toList())
     }
 
@@ -157,10 +158,10 @@ object RecommendationTool {
         var p : BigInteger
         do {
             p = BigInteger(totalScore.bitLength(), random)
-        } while (p.compareTo(totalScore) > 0)
+        } while (p > totalScore)
         for (i in songs.indices) {
             p = p.subtract(score[i])
-            if (p.compareTo(BigInteger.ZERO) <= 0) {
+            if (p <= BigInteger.ZERO) {
                 return songMap[songs[i].id!!]
             }
         }
