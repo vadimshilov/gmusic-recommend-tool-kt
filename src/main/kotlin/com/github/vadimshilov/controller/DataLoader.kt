@@ -77,7 +77,7 @@ object DataLoader {
         val today = DateUtil.getDateInDays()
         if (shouldLoadAlbums(dbTracks) && artist.albums.isPresent) {
             if (dbArtist.loadAlbumsDate != null && today - dbArtist.loadAlbumsDate!! < 7) {
-                loadAlbums = true
+                loadAlbums = false
             }
             if (loadAlbums) {
                 artist.albums.get()
