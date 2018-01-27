@@ -24,8 +24,8 @@ object SongRepository {
     }
 
     fun findAll() : List<Song> {
-        val sql = "SELECT " +
-              "song.id, song.google_id, song.name, album_id, rate, playcount, album_google_id, artist_id, ord " +
+        val sql = "SELECT song.id, song.google_id, song.name, album_id, rate, playcount, " +
+                "album_google_id, artist_id, ord, genre_id " +
               "FROM song INNER JOIN artist ON artist.load_date <= song.load_date AND artist.id = song.artist_id " +
               "ORDER BY ord - playcount"
         val connection = Connection.connection
@@ -109,20 +109,22 @@ object SongRepository {
                 "playcount" to song.playcount,
                 "album_google_id" to song.albumGoogleId,
                 "artist_id" to song.artistId,
-                "ord" to song.ord
+                "ord" to song.ord,
+                "load_date" to song.loadDate
         )
         if (song.albumId != null) {
-            result.put("album_id", song.albumId!!)
+            result["album_id"] = song.albumId!!
         }
-        if (song.loadDate != null) {
-            result.put("load_date", song.loadDate!!)
+        if (song.genre != null) {
+            result["genre_id"] = song.genre
         }
+
         return result
     }
 
     private fun findAllByGoogleIds(googleIds : Collection<String>) : List<Song> {
         val connection = Connection.connection
-        val sql = "SELECT id, google_id, name, album_id, rate, playcount, album_google_id, artist_id, ord " +
+        val sql = "SELECT id, google_id, name, album_id, rate, playcount, album_google_id, artist_id, ord, genre_id " +
                   " FROM $TABLE_NAME WHERE google_id IN "
         val result = mutableListOf<Song>()
         var i = 0
@@ -156,7 +158,8 @@ object SongRepository {
         val albumGoogleId = resultSet.getString(7)
         val artistId = resultSet.getInt(8)
         val ord = resultSet.getInt(9)
-        return Song(id, googleId, name, albumId, rate, playcount, albumGoogleId, artistId, ord)
+        val genre = resultSet.getInt(10)
+        return Song(id, googleId, name, albumId, rate, playcount, albumGoogleId, artistId, ord, genre)
     }
 
 }

@@ -3,14 +3,17 @@ package com.github.vadimshilov.controller
 import com.github.felixgail.gplaymusic.api.GPlayMusic
 import com.github.felixgail.gplaymusic.model.Track
 import com.github.vadimshilov.db.domain.Artist
+import com.github.vadimshilov.db.domain.Genre
 import com.github.vadimshilov.db.domain.Song
 import com.github.vadimshilov.db.repository.ArtistRepository
+import com.github.vadimshilov.db.repository.GenreRepository
 import com.github.vadimshilov.db.repository.SongRepository
 import com.github.vadimshilov.util.DateUtil
 
 object DataLoader {
 
     fun loadSongData(api : GPlayMusic) {
+        val genres = updateGenresData(api)
         val songs = api.promotedTracks
         val artists = mutableSetOf<String>()
         val likedSongs = mutableSetOf<String>()
@@ -27,7 +30,7 @@ object DataLoader {
         for (id in artists) {
 
             loadArtist(api, if (id.startsWith('A')) id else "A" + id, loadedArtists, true, artistBlacklist,
-                    artists, artistData)
+                    artists, artistData, genres)
         }
 
         val artistMap = ArtistRepository.getGoogleIdIdMap()
@@ -37,14 +40,41 @@ object DataLoader {
                 artistId = 'A' + artistId
             }
             if (artistMap.containsKey(artistId)) {
-                initTracks(listOf(song), Artist(artistMap.get(artistId), "", "", null, null), false)
+                initTracks(listOf(song), Artist(artistMap.get(artistId), "", "", null, null), false, genres)
             }
         }
     }
 
+    private fun updateGenresData(api : GPlayMusic) : Map<String, Genre> {
+        val result = mutableMapOf<String, Genre>()
+        val genreMap = mutableMapOf<String, Genre>()
+        var genres = api.genreApi.get()
+        while (genres.isNotEmpty()) {
+            val newGenres = mutableListOf<com.github.felixgail.gplaymusic.model.Genre>()
+            val dbGenres = mutableListOf<Genre>()
+            genres.forEach{ genre ->
+                val googleId = genre.id
+                val name = genre.name
+                val parentId = genre.parentID
+                        .map { genreMap[it]?.id }
+                        .orElse(null)
+                dbGenres.add(Genre(null, googleId, name, parentId))
+                newGenres.addAll(genre.children.orElse(listOf()))
+            }
+            GenreRepository.saveAll(dbGenres)
+            dbGenres.forEach{
+                result[it.name] = it
+                genreMap[it.googleId] = it
+            }
+            genres = newGenres
+        }
+        return result
+    }
+
+
     private fun loadArtist(api : GPlayMusic, id : String, loadedArtists : MutableSet<String>, loadRelated : Boolean,
                            artistBlacklist : Set<String>, promotedArtist : Set<String>,
-                           artistData : Map<String, Artist>) {
+                           artistData : Map<String, Artist>, genres : Map<String, Genre>) {
         if (loadedArtists.contains(id) || artistBlacklist.contains(id)) {
             return
         }
@@ -69,7 +99,7 @@ object DataLoader {
         val dbArtist = createDbArtist(artist)
         dbArtist.loadAlbumsDate = artistData[dbArtist.googleId]?.loadAlbumsDate
         ArtistRepository.save(dbArtist)
-        val dbTracks = initTracks(artist.topTracks.get(), dbArtist, true)
+        val dbTracks = initTracks(artist.topTracks.get(), dbArtist, true, genres)
         val trackGoogleIds = dbTracks
                 .map { it.googleId }
                 .toMutableSet()
@@ -83,7 +113,7 @@ object DataLoader {
                 artist.albums.get()
                         .map { api.getAlbum(it.albumId, true) }
                         .filter { it.tracks.isPresent }
-                        .map { initTracks(it.tracks.get(), dbArtist, false) }
+                        .map { initTracks(it.tracks.get(), dbArtist, false, genres) }
                         .forEach { albumTracks ->
                             albumTracks
                                     .filter { trackGoogleIds.add(it.googleId) }
@@ -106,7 +136,8 @@ object DataLoader {
             ArtistRepository.saveRelatedArtists(id, relatedIds)
             for (relatedId in relatedIds) {
                 val artistId = if (relatedId.startsWith('A')) relatedId else 'A' + relatedId
-                loadArtist(api, artistId, loadedArtists, false, artistBlacklist, promotedArtist, artistData)
+                loadArtist(api, artistId, loadedArtists, false, artistBlacklist, promotedArtist, artistData,
+                        genres)
             }
         }
     }
@@ -138,7 +169,8 @@ object DataLoader {
         return Artist(null, googleId, name, null, null)
     }
 
-    private fun initTracks(tracks : List<Track>, artist : Artist, initOrd : Boolean) : MutableList<Song> {
+    private fun initTracks(tracks : List<Track>, artist : Artist, initOrd : Boolean, genres : Map<String, Genre>)
+            : MutableList<Song> {
         val dbTracks = mutableListOf<Song>()
         var i = 0
         for (track in tracks) {
@@ -151,7 +183,10 @@ object DataLoader {
             val albumId = null
             val albumGoogleId = track.albumId
             val ord = if (initOrd) i else 2000000000
-            dbTracks.add(Song(null, googleId, name, albumId, rate, playcount, albumGoogleId, artist.id!!, ord))
+            val genre = track.genre.map { genres[it]?.id } .orElse(null)
+            dbTracks.add(
+                    Song(null, googleId, name, albumId, rate, playcount, albumGoogleId, artist.id!!, ord, genre)
+            )
             i++
         }
         SongRepository.save(dbTracks)

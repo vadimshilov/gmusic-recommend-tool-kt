@@ -11,5 +11,6 @@ data class Song(var id : Int?,
                 val albumGoogleId : String,
                 val artistId : Int,
                 val ord : Int,
+                val genre : Int?,
                 val loadDate : Int = DateUtil.getDateInDays()) {
 }

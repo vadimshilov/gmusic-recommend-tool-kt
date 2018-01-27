@@ -14,12 +14,12 @@ object Migration {
         if (!tableExists) {
             createInitDatabase(connection)
         }
-        while (true) {
+        loop@ while (true) {
             val version = getVersion(connection)
-            if (version == 1) {
-                versionTwo(connection)
-            } else {
-                break
+            when(version) {
+                1 -> versionTwo(connection)
+                2 -> versionThree(connection)
+                else -> break@loop
             }
         }
     }
@@ -117,6 +117,20 @@ object Migration {
             prepareStatement("UPDATE artist SET load_date = 0").execute()
             prepareStatement("UPDATE song SET load_date = 0").execute()
             prepareStatement("UPDATE db_version SET version = 2").execute()
+        }
+    }
+
+    private fun versionThree(connection: Connection) {
+        with(connection) {
+            prepareStatement("CREATE TABLE genre (" +
+                    "  id INTEGER PRIMARY KEY AUTOINCREMENT," +
+                    "  name VARCHAR," +
+                    "  google_id VARCHAR," +
+                    "  parent_id INTEGER REFERENCES genre(id)" +
+                    ")")
+                    .execute()
+            prepareStatement("ALTER TABLE song ADD COLUMN genre_id INTEGER REFERENCES genre(id)").execute()
+            prepareStatement("UPDATE db_version SET version = 3").execute()
         }
     }
 
