@@ -7,6 +7,8 @@ import com.github.vadimshilov.db.domain.Song
 import com.github.vadimshilov.db.repository.ArtistRepository
 import com.github.vadimshilov.db.repository.SongRepository
 import com.github.vadimshilov.util.DateUtil
+import com.github.vadimshilov.util.SongUtil
+import com.github.vadimshilov.util.domain.SongGroup
 import java.math.BigDecimal
 import java.math.BigInteger
 import java.time.LocalDate
@@ -28,13 +30,16 @@ object RecommendationTool {
                 .map { googleIdIdMap[it] }
                 .filter { it != null }
                 .toSet()
+        val songGroupMap = mutableMapOf<Int, MutableList<SongGroup>>()
         for ((artistId, songs) in songMap) {
             if (blackList.contains(artistId)) {
                 continue
             }
             artistScore[artistId] = maxOf(calcOwnScore(songs, historyPlaycount), 0.0)
             relatedScore[artistId] = 0.0
-            songs.removeIf{ it.rate == 1 }
+            val songGroups = SongUtil.createGroup(songs).toMutableList()
+            songGroups.removeIf{ it.rate == 1 }
+            songGroupMap[artistId] = songGroups
         }
 
         val relatedArtists = ArtistRepository.getRelatedArtists()
@@ -93,9 +98,11 @@ object RecommendationTool {
                     break
                 }
             }
-            val artistSongs = songMap[choosenArtist]!!
+            val artistSongs = songGroupMap[choosenArtist]!!
             val ind = chooseSong(artistSongs, random) ?: continue
-            val songId = artistSongs[ind].googleId
+            val songGroup = artistSongs[ind]
+            val songInd = random.nextInt(songGroup.songs.size)
+            val songId = songGroup.songs[songInd].googleId
             artistSongs.removeAt(ind)
             if (!choosenSongs.contains(songId)) {
                 choosenSongs.add(songId)
@@ -121,17 +128,17 @@ object RecommendationTool {
         }
     }
 
-    private fun chooseSong(songs : List<Song>, random: Random) :Int? {
+    private fun chooseSong(songs : List<SongGroup>, random: Random) :Int? {
         if (songs.isEmpty()) {
             return null
         }
-        val songMap = mutableMapOf<Int, Int>()
-        val known = mutableListOf<Song>()
-        val unknown = mutableListOf<Song>()
+        val songMap = mutableMapOf<SongGroup, Int>()
+        val known = mutableListOf<SongGroup>()
+        val unknown = mutableListOf<SongGroup>()
 
         for (i in songs.indices) {
             val song = songs[i]
-            songMap[song.id!!] = i
+            songMap[song] = i
             if (song.playcount >= 10 || song.rate == 5) {
                 known.add(song)
             } else {
@@ -139,7 +146,7 @@ object RecommendationTool {
             }
         }
         val score = mutableListOf<BigInteger>()
-        val songs : MutableList<Song>
+        val songs : MutableList<SongGroup>
         if (random.nextDouble() < 0.65 && unknown.size != 0 || known.size == 0) {
             var value = BigInteger.ONE
             for (i in unknown.indices) {
@@ -162,7 +169,7 @@ object RecommendationTool {
         for (i in songs.indices) {
             p = p.subtract(score[i])
             if (p <= BigInteger.ZERO) {
-                return songMap[songs[i].id!!]
+                return songMap[songs[i]]
             }
         }
         return songs.size - 1

@@ -9,6 +9,7 @@ import com.github.vadimshilov.db.repository.ArtistRepository
 import com.github.vadimshilov.db.repository.GenreRepository
 import com.github.vadimshilov.db.repository.SongRepository
 import com.github.vadimshilov.util.DateUtil
+import com.github.vadimshilov.util.SongUtil
 
 object DataLoader {
 
@@ -154,13 +155,14 @@ object DataLoader {
         if (tracks.isEmpty()) {
             return false
         }
+        val groups = SongUtil.createGroup(tracks)
         var knownTrackCount = 0
-        for (track in tracks) {
-            if (track.playcount >= 10 || track.rate == 5) {
+        for (group in groups) {
+            if (group.playcount >= 10 || group.rate == 5) {
                 knownTrackCount++
             }
         }
-        return knownTrackCount * 2 >= tracks.size
+        return knownTrackCount * 2 >= groups.size
     }
 
     private fun createDbArtist(artist : com.github.felixgail.gplaymusic.model.Artist) : Artist {

@@ -12,7 +12,7 @@ class ApiProvider private constructor() {
         private const val FILE_NAME = "config.properties"
         private const val EMAIL_PROPERTY = "login.email"
         private const val PASSWORD_PROPERTY = "login.password"
-        private const val ANDROID_ID_PROPERTY = "3afb5b9dfe62f4a0"
+        private const val ANDROID_ID_PROPERTY = "login.androidId"
 
         val api = initApi()
 
