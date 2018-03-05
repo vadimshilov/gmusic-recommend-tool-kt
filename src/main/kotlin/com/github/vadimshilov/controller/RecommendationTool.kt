@@ -113,7 +113,26 @@ object RecommendationTool {
         var choosenSongList = choosenSongs.toMutableList()
         shuffleList(choosenSongList, random)
         choosenSongList = choosenSongList.subList(0, 300)
-        api.playlistApi.addTracksToPlaylist(playlist, choosenSongList.map { api.trackApi.getTrack(it) }.toList())
+        api.playlistApi.addTracksToPlaylist(playlist, choosenSongList
+                .map {
+                    // give it 10 tries
+                    var iterations = 10
+                    var track : Track? = null
+                    while (iterations != 0) {
+                        try {
+                            track = api.trackApi.getTrack(it)
+                            break
+                        } catch (e : Exception) {
+                            iterations--
+                        }
+                    }
+                    if (track == null) {
+                        println("Problems with track $it")
+                    }
+                    track
+                }
+                .filter { it != null }
+                .toList())
     }
 
     private fun shuffleList(list : MutableList<String>, random: Random) {
@@ -197,6 +216,7 @@ object RecommendationTool {
         var result = 0
         var playcount = 0
         var historyPlaycount = 0.0
+        var koefStep = 1.0 / playcountHistory.size
         for (song in songs) {
             if (song.rate != 1) {
                 playcount += song.playcount
@@ -206,13 +226,13 @@ object RecommendationTool {
             } else {
                 result -= 5
             }
-            var i = 1.0
+            var koef = 1.0
             for (historyMap in playcountHistory) {
-                historyPlaycount += historyMap.getOrDefault(song.id!!, 0) / i
-                i++
+                historyPlaycount += historyMap.getOrDefault(song.id!!, 0) * koef
+                koef -= koefStep
             }
         }
-        return result + Math.sqrt(playcount / 4.0) + historyPlaycount
+        return result + Math.sqrt(playcount * koefStep) + historyPlaycount
     }
 
 }
