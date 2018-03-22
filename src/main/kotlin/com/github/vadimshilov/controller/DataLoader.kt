@@ -2,6 +2,7 @@ package com.github.vadimshilov.controller
 
 import com.github.felixgail.gplaymusic.api.GPlayMusic
 import com.github.felixgail.gplaymusic.model.Track
+import com.github.vadimshilov.controller.container.ArtistLoadContext
 import com.github.vadimshilov.db.domain.Artist
 import com.github.vadimshilov.db.domain.Genre
 import com.github.vadimshilov.db.domain.Song
@@ -30,8 +31,8 @@ object DataLoader {
 
         for (id in artists) {
 
-            loadArtist(api, if (id.startsWith('A')) id else "A" + id, loadedArtists, true, artistBlacklist,
-                    artists, artistData, genres)
+            loadArtist(api, if (id.startsWith('A')) id else "A" + id,true,
+                    ArtistLoadContext(loadedArtists, artistBlacklist, artists, artistData, genres))
         }
 
         val artistMap = ArtistRepository.getGoogleIdIdMap()
@@ -73,13 +74,15 @@ object DataLoader {
     }
 
 
-    private fun loadArtist(api : GPlayMusic, id : String, loadedArtists : MutableSet<String>, loadRelated : Boolean,
-                           artistBlacklist : Set<String>, promotedArtist : Set<String>,
-                           artistData : Map<String, Artist>, genres : Map<String, Genre>) {
-        if (loadedArtists.contains(id) || artistBlacklist.contains(id)) {
+    private fun loadArtist(api : GPlayMusic, id : String, loadRelated : Boolean, context : ArtistLoadContext) {
+        val today = DateUtil.getDateInDays()
+        if (context.artistData.containsKey(id) && today - context.artistData[id]!!.loadDate!! < 2) {
             return
         }
-        loadedArtists.add(id)
+        if (context.loadedArtists.contains(id) || context.artistBlacklist.contains(id)) {
+            return
+        }
+        context.loadedArtists.add(id)
         println("Retrieving artist with ID = $id")
         var iterations = 10
         var artist : com.github.felixgail.gplaymusic.model.Artist? = null
@@ -98,14 +101,13 @@ object DataLoader {
             return
         }
         val dbArtist = createDbArtist(artist)
-        dbArtist.loadAlbumsDate = artistData[dbArtist.googleId]?.loadAlbumsDate
+        dbArtist.loadAlbumsDate = context.artistData[dbArtist.googleId]?.loadAlbumsDate
         ArtistRepository.save(dbArtist)
-        val dbTracks = initTracks(artist.topTracks.get(), dbArtist, true, genres)
+        val dbTracks = initTracks(artist.topTracks.get(), dbArtist, true, context.genres)
         val trackGoogleIds = dbTracks
                 .map { it.googleId }
                 .toMutableSet()
         var loadAlbums = true
-        val today = DateUtil.getDateInDays()
         if (shouldLoadAlbums(dbTracks) && artist.albums.isPresent) {
             if (dbArtist.loadAlbumsDate != null && today - dbArtist.loadAlbumsDate!! < 7) {
                 loadAlbums = false
@@ -114,7 +116,7 @@ object DataLoader {
                 artist.albums.get()
                         .map { api.getAlbum(it.albumId, true) }
                         .filter { it.tracks.isPresent }
-                        .map { initTracks(it.tracks.get(), dbArtist, false, genres) }
+                        .map { initTracks(it.tracks.get(), dbArtist, false, context.genres) }
                         .forEach { albumTracks ->
                             albumTracks
                                     .filter { trackGoogleIds.add(it.googleId) }
@@ -129,17 +131,15 @@ object DataLoader {
             ArtistRepository.save(dbArtist)
         }
         SongRepository.save(dbTracks)
-        if ((loadRelated || shouldLoadRelatedArtists(dbTracks) || promotedArtist.contains(id)) &&
+        if ((loadRelated || shouldLoadRelatedArtists(dbTracks) || context.promotedArtist.contains(id)) &&
                 artist.relatedArtists.isPresent) {
             val relatedIds = artist.relatedArtists.get()
                     .map { it.artistId.get() }
                     .toList()
             ArtistRepository.saveRelatedArtists(id, relatedIds)
-            for (relatedId in relatedIds) {
-                val artistId = if (relatedId.startsWith('A')) relatedId else 'A' + relatedId
-                loadArtist(api, artistId, loadedArtists, false, artistBlacklist, promotedArtist, artistData,
-                        genres)
-            }
+            relatedIds
+                    .map { if (it.startsWith('A')) it else 'A' + it }
+                    .forEach { loadArtist(api, it, false, context) }
         }
     }
 
