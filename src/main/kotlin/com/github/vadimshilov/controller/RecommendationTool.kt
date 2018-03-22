@@ -9,15 +9,14 @@ import com.github.vadimshilov.db.repository.SongRepository
 import com.github.vadimshilov.util.DateUtil
 import com.github.vadimshilov.util.SongUtil
 import com.github.vadimshilov.util.domain.SongGroup
-import java.math.BigDecimal
 import java.math.BigInteger
 import java.time.LocalDate
 import java.util.*
 
 object RecommendationTool {
 
-    fun createRecommendedPlaylist(api : GPlayMusic) {
-        val songs = SongRepository.findAll()
+    fun createRecommendedPlaylist(api : GPlayMusic, genreId : Int? = null) {
+        val songs = SongRepository.findAll(genreId)
         val songMap = mutableMapOf<Int, MutableList<Song>>()
         for (song in songs) {
             songMap.getOrPut(song.artistId, { mutableListOf() }).add(song)
@@ -82,7 +81,7 @@ object RecommendationTool {
                 .map { (key, value) -> key to (if (value < 0) minScore else  value) }
                 .toMap()
                 .toMutableMap()
-        val totalScore = artistScore.values.sum()
+        var totalScore = artistScore.values.sum()
         val choosenSongs = mutableSetOf<String>()
         var playList = mutableListOf<String>()
         val random = Random()
@@ -106,6 +105,10 @@ object RecommendationTool {
             artistSongs.removeAt(ind)
             if (!choosenSongs.contains(songId)) {
                 choosenSongs.add(songId)
+            }
+            if (artistSongs.isEmpty()) {
+                totalScore -= artistScore[choosenArtist]!!
+                artistScore.remove(choosenArtist)
             }
         }
         val playlist =

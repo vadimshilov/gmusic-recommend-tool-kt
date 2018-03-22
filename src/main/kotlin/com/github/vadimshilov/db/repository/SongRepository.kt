@@ -23,10 +23,21 @@ object SongRepository {
         }
     }
 
-    fun findAll() : List<Song> {
+    fun findAll(genreId : Int?) : List<Song> {
+        val whereClause = if (genreId == null)
+            ""
+        else {
+            val genres = findChildGenres(genreId)
+            val genreString = if (genres.isEmpty())
+                genreId.toString()
+            else
+                genreId.toString() + "," + genres.joinToString(",")
+            "WHERE genre_id IN ($genreString)"
+        }
         val sql = "SELECT song.id, song.google_id, song.name, album_id, rate, playcount, " +
                 "album_google_id, artist_id, ord, genre_id " +
               "FROM song INNER JOIN artist ON artist.load_date <= song.load_date AND artist.id = song.artist_id " +
+                whereClause +
               "ORDER BY ord - playcount"
         val connection = Connection.connection
         val stmt = connection.prepareStatement(sql)
@@ -37,6 +48,19 @@ object SongRepository {
             result.add(createSongByResultSet(resultSet))
         }
         resultSet.close()
+        return result
+    }
+
+    fun findChildGenres(genreId : Int) : List<Int> {
+        val sql = "SELECT id FROM genre WHERE parent_id = $genreId"
+        val connection = Connection.connection
+        val stmt = connection.prepareStatement(sql)
+        stmt.execute()
+        val resultSet = stmt.resultSet
+        val result = mutableListOf<Int>()
+        while(resultSet.next()) {
+            result.add(resultSet.getInt(1))
+        }
         return result
     }
 
